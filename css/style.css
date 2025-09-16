@@ -1,0 +1,94 @@
+/* Custom styles for Batik Nusantara */
+
+/* Product card hover effect */
+.product-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom button styles */
+.btn-primary {
+    @apply bg-amber-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-amber-700 transition;
+}
+
+.btn-secondary {
+    @apply bg-white text-amber-800 border border-amber-800 px-4 py-2 rounded-lg font-semibold hover:bg-amber-50 transition;
+}
+
+/* Custom badge for sale items */
+.badge-sale {
+    @apply absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full;
+}
+
+/* Custom styling for product details */
+.product-details h1 {
+    @apply text-2xl md:text-3xl font-bold text-amber-800 mb-2;
+}
+
+.product-price {
+    @apply text-xl font-bold text-amber-700;
+}
+
+.product-price-old {
+    @apply text-gray-500 line-through text-sm ml-2;
+}
+
+/* Cart item styling */
+.cart-item {
+    @apply border-b border-gray-200 py-4 flex items-center;
+}
+
+.cart-item-image {
+    @apply w-20 h-20 object-cover rounded;
+}
+
+.cart-item-details {
+    @apply ml-4 flex-grow;
+}
+
+.cart-item-actions {
+    @apply flex items-center;
+}
+
+.quantity-selector {
+    @apply flex items-center border border-gray-300 rounded-lg overflow-hidden;
+}
+
+.quantity-btn {
+    @apply bg-gray-100 px-3 py-1 text-gray-600 hover:bg-gray-200 transition;
+}
+
+.quantity-input {
+    @apply w-10 text-center border-0 focus:outline-none;
+}
+
+/* Checkout form styling */
+.form-group {
+    @apply mb-4;
+}
+
+.form-label {
+    @apply block text-gray-700 font-medium mb-2;
+}
+
+.form-input {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500;
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
