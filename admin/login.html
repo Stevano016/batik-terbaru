@@ -26,6 +26,9 @@
         </div>
         
         <form id="login-form" class="space-y-6">
+            <!-- CSRF Protection Token -->
+            <input type="hidden" id="csrf_token" name="csrf_token">
+            
             <div>
                 <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
                 <div class="relative">
@@ -90,8 +93,36 @@
             const loginLoading = document.getElementById('login-loading');
             const alertContainer = document.getElementById('alert-container');
             
+            // Check URL parameters for session messages
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('expired') === 'true') {
+                showAlert('Sesi Anda telah berakhir. Silakan login kembali.', 'warning');
+            } else if (urlParams.get('invalid') === 'true') {
+                showAlert('Sesi Anda tidak valid. Silakan login kembali.', 'error');
+            } else if (urlParams.get('logout') === 'true') {
+                showAlert('Anda telah berhasil logout.', 'success');
+            }
+            
+            // Add login attempt tracking for security
+            let loginAttempts = parseInt(localStorage.getItem('loginAttempts') || '0');
+            let lockoutUntil = localStorage.getItem('lockoutUntil');
+            
+            // Check if account is locked
+            if (lockoutUntil && new Date(lockoutUntil) > new Date()) {
+                const remainingTime = Math.ceil((new Date(lockoutUntil) - new Date()) / (1000 * 60));
+                showAlert(`Terlalu banyak percobaan login. Coba lagi dalam ${remainingTime} menit.`, 'error');
+                document.querySelector('button[type="submit"]').disabled = true;
+            }
+            
             loginForm.addEventListener('submit', function(e) {
                 e.preventDefault();
+                
+                // Check if account is locked
+                if (lockoutUntil && new Date(lockoutUntil) > new Date()) {
+                    const remainingTime = Math.ceil((new Date(lockoutUntil) - new Date()) / (1000 * 60));
+                    showAlert(`Terlalu banyak percobaan login. Coba lagi dalam ${remainingTime} menit.`, 'error');
+                    return;
+                }
                 
                 // Show loading state
                 loginText.classList.add('hidden');
@@ -101,22 +132,60 @@
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
                 
-                // Simulate API call (replace with actual API call)
-                setTimeout(() => {
+                // Validate CSRF token
+                const csrfToken = document.getElementById('csrf_token').value;
+                const storedCsrfToken = sessionStorage.getItem('csrf_token');
+                
+                if (csrfToken !== storedCsrfToken) {
+                    showAlert('Sesi keamanan tidak valid. Silakan muat ulang halaman.', 'error');
+                    loginText.classList.remove('hidden');
+                    loginLoading.classList.add('hidden');
+                    return;
+                }
+                
+                // Simulate API call
+                setTimeout(function() {
                     // For demo purposes, hardcoded credentials
                     if (username === 'admin' && password === 'admin123') {
-                        // Success - store auth in localStorage
+                        // Reset login attempts on successful login
+                        localStorage.removeItem('loginAttempts');
+                        localStorage.removeItem('lockoutUntil');
+                        
+                        // Generate secure session token
+                        const sessionToken = generateSecureToken();
+                        
+                        // Save login state to localStorage with enhanced security
                         localStorage.setItem('adminAuth', JSON.stringify({
-                            username: username,
                             isLoggedIn: true,
-                            loginTime: new Date().getTime()
+                            username: username,
+                            loginTime: new Date().getTime(),
+                            sessionToken: sessionToken,
+                            expiresAt: new Date().getTime() + (24 * 60 * 60 * 1000) // 24 hours
                         }));
                         
-                        // Redirect to dashboard
+                        // Generate new CSRF token after successful login
+                        sessionStorage.removeItem('csrf_token');
+                        
+                        // Redirect to admin dashboard
                         window.location.href = 'index.html';
                     } else {
-                        // Show error
-                        showAlert('Username atau password salah!', 'error');
+                        // Increment login attempts
+                        loginAttempts++;
+                        localStorage.setItem('loginAttempts', loginAttempts.toString());
+                        
+                        // Lock account after 5 failed attempts
+                        if (loginAttempts >= 5) {
+                            const lockoutTime = new Date();
+                            lockoutTime.setMinutes(lockoutTime.getMinutes() + 30); // Lock for 30 minutes
+                            localStorage.setItem('lockoutUntil', lockoutTime.toString());
+                            
+                            showAlert('Terlalu banyak percobaan login. Akun terkunci selama 30 menit.', 'error');
+                            document.querySelector('button[type="submit"]').disabled = true;
+                        } else {
+                            // Show error with remaining attempts
+                            const remainingAttempts = 5 - loginAttempts;
+                            showAlert(`Username atau password salah. Sisa percobaan: ${remainingAttempts}`, 'error');
+                        }
                         
                         // Reset loading state
                         loginText.classList.remove('hidden');
@@ -124,6 +193,19 @@
                     }
                 }, 1000);
             });
+            
+            // Generate secure random token
+            function generateSecureToken() {
+                const array = new Uint8Array(24);
+                window.crypto.getRandomValues(array);
+                return Array.from(array, byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
+            }
+            
+            // Generate CSRF token on page load
+            document.getElementById('csrf_token').value = generateSecureToken();
+            
+            // Store CSRF token in sessionStorage for validation
+            sessionStorage.setItem('csrf_token', document.getElementById('csrf_token').value);
             
             // Function to show alerts
             function showAlert(message, type) {

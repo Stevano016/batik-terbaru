@@ -13,9 +13,20 @@ function checkAuth() {
     
     if (hoursSinceLogin >= 24) {
         localStorage.removeItem('adminAuth');
-        window.location.href = 'login.html';
+        window.location.href = 'login.html?expired=true';
         return false;
     }
+    
+    // Check if session token exists
+    if (!adminAuth.sessionToken) {
+        localStorage.removeItem('adminAuth');
+        window.location.href = 'login.html?invalid=true';
+        return false;
+    }
+    
+    // Extend session on activity (sliding expiration)
+    adminAuth.loginTime = currentTime;
+    localStorage.setItem('adminAuth', JSON.stringify(adminAuth));
     
     // Set admin info
     document.getElementById('admin-username').textContent = adminAuth.username;
@@ -30,6 +41,17 @@ function formatRupiah(number) {
         currency: 'IDR',
         minimumFractionDigits: 0
     }).format(number).replace(/\s/g, '');
+}
+
+// Secure logout function
+function secureLogout() {
+    // Clear all authentication data
+    localStorage.removeItem('adminAuth');
+    localStorage.removeItem('loginAttempts');
+    localStorage.removeItem('lockoutUntil');
+    
+    // Redirect to login page with logout parameter
+    window.location.href = 'login.html?logout=true';
 }
 
 // Show alert notification
@@ -512,10 +534,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check authentication
     if (!checkAuth()) return;
     
+    // Initialize sidebar toggle
+    initSidebar();
+    
+    // Initialize navigation
+    initNavigation();
+    
     // Load products
     loadProducts();
     
-    // Mobile sidebar toggle
+    // Load orders
+    loadOrders();
+    
+    // Initialize product form
+    initProductForm();
+    
+    // Initialize event listeners
+    initEventListeners();
+});
+
+// Initialize sidebar
+function initSidebar() {
     document.getElementById('toggle-sidebar').addEventListener('click', function() {
         document.querySelector('.sidebar').classList.add('open');
     });
@@ -523,7 +562,35 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('close-sidebar').addEventListener('click', function() {
         document.querySelector('.sidebar').classList.remove('open');
     });
-    
+}
+
+// Initialize navigation
+function initNavigation() {
+    // Handle navigation between tabs
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const target = this.getAttribute('data-target');
+            
+            // Hide all content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Show target section
+            document.getElementById(target).classList.remove('hidden');
+            
+            // Update active nav link
+            document.querySelectorAll('.nav-link').forEach(navLink => {
+                navLink.classList.remove('active');
+            });
+            this.classList.add('active');
+        });
+    });
+}
+
+// Initialize product form and related event listeners
+function initProductForm() {
     // Add product button
     document.getElementById('add-product-btn').addEventListener('click', openAddProductModal);
     
@@ -555,9 +622,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Image preview
     document.getElementById('product-image').addEventListener('change', handleImagePreview);
-    
+}
+
+// Initialize other event listeners
+function initEventListeners() {
     // Logout button
-    document.getElementById('logout-btn').addEventListener('click', handleLogout);
+    document.getElementById('logout-btn').addEventListener('click', secureLogout);
     
     // Filter and search functionality
     document.getElementById('category-filter').addEventListener('change', function() {
@@ -574,4 +644,192 @@ document.addEventListener('DOMContentLoaded', function() {
         // In a real app, this would search products
         console.log('Search:', this.value);
     });
-});
+}
+
+// Load orders from API
+async function loadOrders() {
+    try {
+        // For demo purposes, use sample data
+        // In production, use: const response = await fetch('http://localhost:3000/api/orders');
+        const orders = [
+            {
+                id: 1,
+                customer_name: 'Budi Santoso',
+                products: [
+                    { name: 'Batik Parang', quantity: 2, price: 315000 },
+                    { name: 'Batik Kawung', quantity: 1, price: 318750 }
+                ],
+                total: 948750,
+                status: 'pending',
+                date: '2023-05-15T08:30:00Z'
+            },
+            {
+                id: 2,
+                customer_name: 'Siti Rahayu',
+                products: [
+                    { name: 'Batik Megamendung', quantity: 1, price: 450000 }
+                ],
+                total: 450000,
+                status: 'processing',
+                date: '2023-05-14T14:45:00Z'
+            },
+            {
+                id: 3,
+                customer_name: 'Agus Wijaya',
+                products: [
+                    { name: 'Batik Sekar Jagad', quantity: 1, price: 500000 },
+                    { name: 'Batik Tujuh Rupa', quantity: 1, price: 403750 }
+                ],
+                total: 903750,
+                status: 'completed',
+                date: '2023-05-13T10:15:00Z'
+            }
+        ];
+        
+        // Update stats
+        document.getElementById('new-orders').textContent = orders.filter(order => order.status === 'pending').length;
+        
+        // Render orders table
+        renderOrdersTable(orders);
+        
+    } catch (error) {
+        console.error('Error loading orders:', error);
+        showAlert('Gagal memuat data pesanan', 'error');
+    }
+}
+
+// Render orders table
+function renderOrdersTable(orders) {
+    const tableBody = document.getElementById('orders-table-body');
+    
+    if (!tableBody) return;
+    
+    if (orders.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                    Tidak ada pesanan yang ditemukan
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tableBody.innerHTML = '';
+    
+    orders.forEach(order => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        
+        // Format date
+        const orderDate = new Date(order.date);
+        const formattedDate = orderDate.toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        
+        // Status badge class
+        let statusClass = '';
+        switch(order.status) {
+            case 'pending':
+                statusClass = 'bg-yellow-100 text-yellow-800';
+                break;
+            case 'processing':
+                statusClass = 'bg-blue-100 text-blue-800';
+                break;
+            case 'completed':
+                statusClass = 'bg-green-100 text-green-800';
+                break;
+            case 'cancelled':
+                statusClass = 'bg-red-100 text-red-800';
+                break;
+        }
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900">#${order.id}</div>
+                <div class="text-sm text-gray-500">${formattedDate}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-sm font-medium text-gray-900">${order.customer_name}</div>
+                <div class="text-sm text-gray-500">${order.products.length} produk</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-sm text-gray-900">${formatRupiah(order.total)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                    ${order.status === 'pending' ? 'Menunggu' : 
+                      order.status === 'processing' ? 'Diproses' : 
+                      order.status === 'completed' ? 'Selesai' : 'Dibatalkan'}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button class="text-amber-600 hover:text-amber-900 view-order" data-id="${order.id}">
+                    Detail
+                </button>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+    
+    // Add event listeners to view order buttons
+    document.querySelectorAll('.view-order').forEach(button => {
+        button.addEventListener('click', () => {
+            const orderId = button.getAttribute('data-id');
+            viewOrderDetails(orderId, orders);
+        });
+    });
+}
+
+// View order details
+function viewOrderDetails(orderId, orders) {
+    const order = orders.find(o => o.id == orderId);
+    if (!order) return;
+    
+    const modal = document.getElementById('order-detail-modal');
+    if (!modal) return;
+    
+    // Fill order details
+    document.getElementById('order-id').textContent = `#${order.id}`;
+    document.getElementById('order-customer').textContent = order.customer_name;
+    document.getElementById('order-date').textContent = new Date(order.date).toLocaleDateString('id-ID', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    document.getElementById('order-status').textContent = 
+        order.status === 'pending' ? 'Menunggu' : 
+        order.status === 'processing' ? 'Diproses' : 
+        order.status === 'completed' ? 'Selesai' : 'Dibatalkan';
+    
+    // Fill products table
+    const productsTable = document.getElementById('order-products');
+    productsTable.innerHTML = '';
+    
+    order.products.forEach(product => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-4 py-2 border-b">${product.name}</td>
+            <td class="px-4 py-2 border-b text-center">${product.quantity}</td>
+            <td class="px-4 py-2 border-b text-right">${formatRupiah(product.price)}</td>
+            <td class="px-4 py-2 border-b text-right">${formatRupiah(product.price * product.quantity)}</td>
+        `;
+        productsTable.appendChild(row);
+    });
+    
+    // Set total
+    document.getElementById('order-total').textContent = formatRupiah(order.total);
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Add close event listener
+    document.getElementById('close-order-modal').addEventListener('click', function() {
+        modal.classList.add('hidden');
+    });
+}

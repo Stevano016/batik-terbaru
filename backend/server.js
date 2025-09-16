@@ -63,7 +63,32 @@ const upload = multer({
 // Get all products
 app.get('/api/products', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM products ORDER BY created_at DESC');
+    const { category, search, limit } = req.query;
+    let query = 'SELECT * FROM products';
+    const params = [];
+    
+    // Filter by category
+    if (category) {
+      query += ' WHERE category = ?';
+      params.push(category);
+    }
+    
+    // Search by name or description
+    if (search) {
+      query += category ? ' AND' : ' WHERE';
+      query += ' (name LIKE ? OR description LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    // Limit results
+    if (limit) {
+      query += ' LIMIT ?';
+      params.push(parseInt(limit));
+    }
+    
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching products:', error);
